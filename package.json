@@ -1,0 +1,28 @@
+{
+  "name": "run-as-root-fix",
+  "version": "1.0.0",
+  "description": "",
+  "bin": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "pkg ."
+  },
+  "pkg": {
+    "scripts": "worker.js",
+    "targets": [
+      "node16-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@moorewc/node-isilon": "^0.1.15",
+    "argparse": "^2.0.1",
+    "async": "^3.2.3",
+    "chalk": "^4.1.2",
+    "line-reader": "^0.4.0",
+    "log-timestamp": "^0.3.0",
+    "prompts": "^2.4.2"
+  }
+}
