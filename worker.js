@@ -92,7 +92,7 @@ parentPort.on('message', async ({ path, user }) => {
 
     // Record the start and time deltas
     startedAt = new Date()
-    filesScanned = numUpdated = 0
+    filesScanned = numUpdates = 0
     dates = 0
     await walkTree({ path: _path, user: user })
 
@@ -102,7 +102,7 @@ parentPort.on('message', async ({ path, user }) => {
 
     deltaTime = ((new Date() - startedAt) / 1000).toFixed(2)
     iops = Math.round((filesScanned + numUpdates) / deltaTime).toFixed(0)
-    filesP = (numUpdates / (filesScanned + numUpdates)).toFixed(2)
+    filesP = (numUpdates / (filesScanned + numUpdates) * 100).toFixed(2)
 
     pathColor = chalk.hex('#FF0000')
 
