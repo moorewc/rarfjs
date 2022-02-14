@@ -3,16 +3,104 @@ const { ArgumentParser } = require('argparse')
 const { exit } = require('process')
 const fs = require('fs')
 const lineReader = require('line-reader');
-
 const prompts = require('prompts')
 const IsilonClient = require('@moorewc/node-isilon')
-// const { parse } = require('path')
-// const { fileURLToPath } = require('url')
-// const { fstat } = require('fs')
 const async = require('async')
 const chalk = require('chalk')
+var vsprintf = require('sprintf-js').vsprintf;
+var heredoc = require('heredoc')
+
+let report = {
+  jobs: [],
+  startedAt: new Date(),
+  completedAt: undefined,
+  stats: {
+    filesScanned: 0,
+    filesFixed: 0,
+    dirsScanned: 0,
+    dirsFixed: 0
+  }
+}
+
+let repairPath = '';
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+var reportHeader = heredoc.strip(function () {/*
++==========================+=============+===============+==============================================================+========================+========================+=========+
+| Completed At             | Status      | User          | Path                                                         | Files                  | Folders                | Time    |
++--------------------------+-------------+---------------+--------------------------------------------------------------+------------------------+------------------------+---------+*/
+})
+
+function printFinalReport() {
+  let interrupted = false;
+
+  report.jobs.sort(
+    (a, b) => {
+      deltaA = a.completedAt - a.startedAt;
+      deltaB = b.completedAt - b.startedAt;
+
+      if (deltaA < deltaB) return 1;
+      if (deltaA > deltaB) return -1;
+
+      return 0;
+    }
+  )
+
+  console.log(reportHeader);
+
+  report.jobs.map((j) => {
+    status = j.status.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+
+    if (status === 'INTERRUPTED') {
+      interrupted = true;
+    }
+
+    return {
+      Status: status,
+      User: j.user.id.name,
+      SID: j.user.id.id,
+      Path: j.path,
+      Files: vsprintf('%7d/%7d (%3d%%)', [j.stats.filesFixed, j.stats.filesScanned, (j.stats.filesFixed / j.stats.filesScanned) * 100]),
+      Folders: vsprintf(`%7d/%7d (%3d%%)`, [j.stats.dirsFixed, j.stats.dirsScanned, (j.stats.dirsFixed / j.stats.dirsScanned) * 100]),
+      Time: ((j.completedAt - j.startedAt) / 1000).toFixed(2),
+      CompletedAt: j.completedAt.toISOString()
+    }
+  }).forEach(j => {
+    console.log(vsprintf('| %s | %-11s | %-13s | %-60s | %22s | %22s | %6.2fs |', [j.CompletedAt, j.Status, j.User, j.Path, j.Files, j.Folders, j.Time]));
+  });
+  console.log("+--------------------------+-------------+---------------+--------------------------------------------------------------+------------------------+------------------------+---------+")
+
+  report.completedAt = new Date();
+  deltaTime = ((report.completedAt - report.startedAt) / 1000).toFixed(2);
+
+  iops = 0;
+  for (key of Object.keys(report.stats)) {
+    iops += report.stats[key];
+  }
+  iops = (iops / deltaTime).toFixed(0);
+
+  let fileStats = vsprintf('%7d/%7d (%3d%%)', [report.stats.filesFixed, report.stats.filesScanned, ((report.stats.filesFixed / report.stats.filesScanned) * 100)]);
+  let dirStats = vsprintf('%7d/%7d (%3d%%)', [report.stats.dirsFixed, report.stats.dirsScanned, ((report.stats.dirsFixed / report.stats.dirsScanned) * 100)]);
+
+  console.log(vsprintf('| %-24s | %-11s | %-13s | %-60s | %22s | %22s | %6.2fs |', [report.completedAt.toISOString(), interrupted ? 'INTERRUPTED' : 'COMPLETED', 'ALL USERS', repairPath, fileStats, dirStats, deltaTime]));
+  console.log("+--------------------------+-------------+---------------+--------------------------------------------------------------+------------------------+------------------------+---------+")
+
+  let avgTime = (deltaTime / report.jobs.length).toFixed(2);
+
+  console.log(`\nNum Users:  ${report.jobs.length}`);
+  console.log(`Average Time:  ${avgTime}s`)
+}
 
 
+function logger(string) {
+  let timestamp = new Date().toISOString();
+  console.log(`[${timestamp}][` + chalk.yellow('MASTER001') + `] ${string} `)
+}
 
 async function GetCredentials() {
   questions = [
@@ -30,7 +118,6 @@ async function GetCredentials() {
 
   return await prompts(questions)
 }
-
 
 function GetArguments() {
   const parser = new ArgumentParser({
@@ -80,6 +167,7 @@ function GetArguments() {
 
   let workers = [];
   let users = []
+  repairPath = path;
 
   const isilon = new IsilonClient({
     ssip: hostname,
@@ -94,7 +182,7 @@ function GetArguments() {
 
       if (t) {
         users[username.toLowerCase()] = t
-        console.log(`=> ${username} [${t.id.id}] [${t.id.name}]`)
+        console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
       }
     } catch (error) {
       throw error;
@@ -145,22 +233,48 @@ function GetArguments() {
   }
 
   WorkerCallback = async (payload) => {
+
+    if (payload.msg === 'results') {
+      let results = payload.results;
+      let deltaTime = ((results.completedAt - results.startedAt) / 1000).toFixed(2)
+
+      report.jobs.push(results)
+
+      iops = 0;
+      for (key of Object.keys(results.stats)) {
+        iops += results.stats[key];
+        report.stats[key] += results.stats[key];
+      }
+      iops = (iops / deltaTime).toFixed(0);
+
+      let fileStats = `${results.stats.filesFixed}/${results.stats.filesScanned} (${(results.stats.filesFixed / results.stats.filesScanned) * 100}%)`
+      let dirStats = `${results.stats.dirsFixed}/${results.stats.dirsScanned} (${(results.stats.dirsFixed / results.stats.dirsScanned) * 100}%)`
+
+      let status = payload.shutdown === true ? chalk.red('INTERRUPTED') : chalk.green('COMPLETED');
+      results.status = status;
+
+      logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
+
+      if (payload.shutdown === true) {
+        workers[payload.id].postMessage({ cmd: 'shutdown' })
+      }
+    }
+
     if (payload.msg === 'next') {
       nextPath = folderRedirects.pop()
 
       if (nextPath) {
         uname = nextPath.substring(nextPath.lastIndexOf('/') + 1).toLowerCase()
-        workers[payload.id].postMessage({ path: nextPath, user: users[uname] })
+
+        workers[payload.id].postMessage({ cmd: 'process_user', path: nextPath, user: users[uname] })
       } else {
-        console.log('[' + chalk.blue(payload.name) + `] THREAD COMPLETE, CLOSING.`)
+        logger('[' + chalk.blue(payload.name) + `] THREAD COMPLETE, CLOSING.`)
 
         workers[payload.id].removeListener('message', WorkerCallback)
         workers[payload.id].unref()
         numThreads--;
         if (numThreads == 0) {
-          console.log(
-            '======================================================================================='
-          )
+          printFinalReport();
         }
       }
     }
@@ -404,10 +518,24 @@ function GetArguments() {
   if (validate) {
     process.exit();
   }
-  require('log-timestamp')
+
+  process.on('SIGINT', async function () {
+    //console.log("Caught interrupt signal");
+
+    for (worker of workers) {
+      worker.postMessage({ cmd: 'interrupt' })
+    }
+
+    await sleep(1000);
+
+    printFinalReport();
+  });
+
   console.log(
     '======================================================================================='
   )
+
+
 
   for (let i = 0; i < numThreads; i++) {
     config = {
@@ -418,4 +546,4 @@ function GetArguments() {
 
     workers.push(CreateWorker(config, i))
   }
-})()
+})();
