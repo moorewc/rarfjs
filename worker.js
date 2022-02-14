@@ -6,6 +6,7 @@ require('log-timestamp')
 
 const { config, name, id, concurrency, log_level } = workerData
 const isilon = new IsilonClient(config)
+const axios = isilon.ssip.axios
 
 let numFiles; let numUpdates = 0
 let job = {}
@@ -48,7 +49,6 @@ const fileQueue = async.queue(async ({ path, user }, callback) => {
     let type = path.type === "container" ? "D" : "F"
     logger(`SCANNING ${type} ${path.path}`)
   }
-
 
   filesScanned++
 
@@ -108,11 +108,63 @@ async function getFolderAcl(path) {
   }
 }
 
+async function getGroup({ group: group }) {
+  let baseUrl = `/platform/11/auth/groups/${group}`
+
+  try {
+    let response = await axios.get(baseUrl);
+
+    return response.data.groups[0];
+  } catch (error) {
+    if (error.status === 404) {
+      return undefined
+    }
+
+    throw error
+  }
+}
+
+async function removeUserFromGroup({ user, group }) {
+  let baseUrl = `/platform/11/auth/groups/${group}/members/${user.id.id}`
+
+  let g = await getGroup({ group: group });
+
+  if (g === undefined) {
+    return undefined
+  }
+
+  try {
+    let response = await axios.delete(baseUrl);
+    return true;
+  } catch (error) {
+
+    return false;
+  }
+}
+
+async function addUserToGroup({ user, group }) {
+  let baseUrl = `/platform/11/auth/groups/${group}/members`
+
+  let g = await getGroup({ group: group });
+
+  if (g === undefined) {
+    return undefined
+  }
+
+  try {
+    let response = await axios.post(baseUrl, {
+      type: "user",
+      id: user.id.id
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
 logger(`Connecting to ${config.ssip}`)
 
 parentPort.postMessage({ msg: 'next', id: id, name: name })
-
-
 
 parentPort.on('message', async ({ cmd, path, user }) => {
   if (cmd === 'interrupt') {
@@ -150,12 +202,59 @@ parentPort.on('message', async ({ cmd, path, user }) => {
       filesScanned = numUpdates = 0
       dates = 0
 
+      try {
+        let groupName = 'Run-As-Root';
+        let result = await removeUserFromGroup({ user: user, group: groupName })
+        if (result === undefined) {
+          logger(`Unable to remove ${user.id.name} from group '${groupName}', group does not exist.`)
+        } else if (result === true) {
+          logger(`${user.id.name} was removed from '${groupName}'`)
+        }
+      } catch (error) {
+        throw error;
+      }
+
+      // Add user to group to disable access.
+      try {
+        let groupName = 'Blocked-Users';
+        let result = await addUserToGroup({ user: user, group: groupName });
+
+        if (result === undefined) {
+          logger(`Unable to add ${user.id.name} from group '${groupName}', group does not exist.`)
+        } else if (result === true) {
+          logger(`${user.id.name} was added to '${groupName}'`)
+        }
+      } catch (error) {
+        throw error
+      }
+
+      try {
+        await walkTree({ path: _path, user: user })
+      } catch (error) {
+        throw error;
+      }
 
 
-      await walkTree({ path: _path, user: user })
+      try {
+        await fileQueue.drain()
+      } catch (error) {
+        throw error;
+      }
 
 
-      await fileQueue.drain()
+      // Remove User from Blocked-Users group to re-enable access.
+      try {
+        let groupName = 'Blocked-Users';
+        let result = await removeUserFromGroup({ user: user, group: groupName });
+
+        if (result === undefined) {
+          logger(`Unable to remove ${user.id.name} from group '${groupName}', group does not exist.`)
+        } else if (result === true) {
+          logger(`${user.id.name} was removed from '${groupName}'`)
+        }
+      } catch (error) {
+        throw error
+      }
 
       deltaTime = ((new Date() - startedAt) / 1000).toFixed(2)
       iops = Math.round((filesScanned + numUpdates) / deltaTime).toFixed(0)
@@ -172,4 +271,4 @@ parentPort.on('message', async ({ cmd, path, user }) => {
 
     completeJob({ shutdown: false });
   }
-})
+});

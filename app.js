@@ -99,7 +99,7 @@ function printFinalReport() {
 
 function logger(string) {
   let timestamp = new Date().toISOString();
-  console.log(`[${timestamp}][` + chalk.yellow('MASTER001') + `] ${string} `)
+  console.log(`[${timestamp}] [` + chalk.yellow('MASTER001') + `] ${string} `)
 }
 
 async function GetCredentials() {
@@ -268,7 +268,7 @@ function GetArguments() {
 
         workers[payload.id].postMessage({ cmd: 'process_user', path: nextPath, user: users[uname] })
       } else {
-        logger('[' + chalk.blue(payload.name) + `] THREAD COMPLETE, CLOSING.`)
+        logger(`${payload.name} COMPLETE, CLOSING.`)
 
         workers[payload.id].removeListener('message', WorkerCallback)
         workers[payload.id].unref()
