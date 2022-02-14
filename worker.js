@@ -8,7 +8,6 @@ const { config, name, id, concurrency, log_level } = workerData
 const isilon = new IsilonClient(config)
 const axios = isilon.ssip.axios
 
-let numFiles; let numUpdates = 0
 let job = {}
 
 function logger(string) {
@@ -241,7 +240,6 @@ parentPort.on('message', async ({ cmd, path, user }) => {
         throw error;
       }
 
-
       // Remove User from Blocked-Users group to re-enable access.
       try {
         let groupName = 'Blocked-Users';
@@ -255,20 +253,9 @@ parentPort.on('message', async ({ cmd, path, user }) => {
       } catch (error) {
         throw error
       }
-
-      deltaTime = ((new Date() - startedAt) / 1000).toFixed(2)
-      iops = Math.round((filesScanned + numUpdates) / deltaTime).toFixed(0)
-      filesP = (numUpdates / (filesScanned + numUpdates) * 100).toFixed(2)
-
-      pathColor = chalk.hex('#FF0000')
-
-      //    logger(chalk.green('COMPLETED') + ` ${path} [Scanned: ${filesScanned}, Updated:  ${numUpdates} (${filesP}%), Time: ${deltaTime}s, IOPs: ${iops}]`)
     } else {
       logger(chalk.yellow('SKIPPING') + ` ${path} (USER NOT FOUND)`)
     }
-    //    parentPort.postMessage({ msg: 'next', id: id, name: name })
-    // Request a new path from the master process.
-
     completeJob({ shutdown: false });
   }
 });
