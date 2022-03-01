@@ -161,7 +161,7 @@ async function addUserToGroup({ user, group }) {
   }
 }
 
-logger(`Connecting to ${config.ssip}`)
+logger(`CONNECTING TO ${config.ssip}`)
 
 parentPort.postMessage({ msg: 'next', id: id, name: name })
 
@@ -207,7 +207,7 @@ parentPort.on('message', async ({ cmd, path, user }) => {
         if (result === undefined) {
           logger(`Unable to remove ${user.id.name} from group '${groupName}', group does not exist.`)
         } else if (result === true) {
-          logger(`${user.id.name} was removed from '${groupName}'`)
+          logger(`REMOVED USER ${user.id.name} [${user.id.id}] FROM GROUP 'LOCAL:${groupName}'`)
         }
       } catch (error) {
         throw error;
@@ -221,7 +221,7 @@ parentPort.on('message', async ({ cmd, path, user }) => {
         if (result === undefined) {
           logger(`Unable to add ${user.id.name} from group '${groupName}', group does not exist.`)
         } else if (result === true) {
-          logger(`${user.id.name} was added to '${groupName}'`)
+          logger(`ADDED USER ${user.id.name} [${user.id.id}] TO GROUP 'LOCAL:${groupName}'`)
         }
       } catch (error) {
         throw error
@@ -248,7 +248,7 @@ parentPort.on('message', async ({ cmd, path, user }) => {
         if (result === undefined) {
           logger(`Unable to remove ${user.id.name} from group '${groupName}', group does not exist.`)
         } else if (result === true) {
-          logger(`${user.id.name} was removed from '${groupName}'`)
+          logger(`REMOVED USER ${user.id.name} [${user.id.id}] FROM GROUP 'LOCAL:${groupName}'`)
         }
       } catch (error) {
         throw error
