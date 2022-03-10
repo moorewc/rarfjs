@@ -158,6 +158,12 @@ function GetArguments() {
     help: 'PreFlight Check'
   })
 
+  parser.add_argument('--populate-groups', {
+    required: false,
+    action: "store_true",
+    help: 'Populate Run-As-Root group'
+  })
+
   return parser.parse_args()
 }
 
@@ -223,7 +229,8 @@ function GetArguments() {
 
 
     for (const result of await path.readdir()) {
-      if (result) {
+
+      if (result && result.type === 'container') {
         console.log(`+ ${result.path}`)
         results.push(result.path)
       }
@@ -241,19 +248,31 @@ function GetArguments() {
       report.jobs.push(results)
 
       iops = 0;
-      for (key of Object.keys(results.stats)) {
-        iops += results.stats[key];
-        report.stats[key] += results.stats[key];
+      try {
+        for (key of Object.keys(results.stats)) {
+          iops += results.stats[key];
+          report.stats[key] += results.stats[key];
+        }
+        iops = (iops / deltaTime).toFixed(0);
+
+        let fileStats = `${results.stats.filesFixed}/${results.stats.filesScanned} (${(results.stats.filesFixed / results.stats.filesScanned) * 100}%)`
+        let dirStats = `${results.stats.dirsFixed}/${results.stats.dirsScanned} (${(results.stats.dirsFixed / results.stats.dirsScanned) * 100}%)`
+
+        let status = payload.shutdown === true ? chalk.red('INTERRUPTED') : chalk.green('COMPLETED');
+        results.status = status;
+
+        logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
+      } catch (error) {
+
       }
-      iops = (iops / deltaTime).toFixed(0);
 
-      let fileStats = `${results.stats.filesFixed}/${results.stats.filesScanned} (${(results.stats.filesFixed / results.stats.filesScanned) * 100}%)`
-      let dirStats = `${results.stats.dirsFixed}/${results.stats.dirsScanned} (${(results.stats.dirsFixed / results.stats.dirsScanned) * 100}%)`
+      // let fileStats = `${results.stats.filesFixed}/${results.stats.filesScanned} (${(results.stats.filesFixed / results.stats.filesScanned) * 100}%)`
+      // let dirStats = `${results.stats.dirsFixed}/${results.stats.dirsScanned} (${(results.stats.dirsFixed / results.stats.dirsScanned) * 100}%)`
 
-      let status = payload.shutdown === true ? chalk.red('INTERRUPTED') : chalk.green('COMPLETED');
-      results.status = status;
+      // let status = payload.shutdown === true ? chalk.red('INTERRUPTED') : chalk.green('COMPLETED');
+      // results.status = status;
 
-      logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
+      // logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
 
       if (payload.shutdown === true) {
         workers[payload.id].postMessage({ cmd: 'shutdown' })
