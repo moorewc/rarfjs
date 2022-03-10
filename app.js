@@ -116,6 +116,13 @@ async function GetCredentials() {
     }
   ]
 
+  if (process.env.ISI_USERNAME && process.env.ISI_PASSWORD) {
+    return {
+      username: process.env.ISI_USERNAME,
+      password: process.env.ISI_PASSWORD
+    }
+  }
+
   return await prompts(questions)
 }
 
@@ -168,7 +175,7 @@ function GetArguments() {
 }
 
 (async () => {
-  const { hostname, path, threads, concurrency, log_level, batch_file, validate } = GetArguments()
+  const { hostname, path, threads, concurrency, log_level, batch_file, validate, populate_groups } = GetArguments()
   const { username, password } = await GetCredentials()
 
   let workers = [];
@@ -194,6 +201,7 @@ function GetArguments() {
       throw error;
     }
   }, concurrency)
+
 
   GetFolderRedirectsFromFile = async (file) => {
     const data = fs.readFileSync(file);
@@ -437,6 +445,56 @@ function GetArguments() {
     })[0]
   }
 
+  const GetGroup = async ({ group, zone }) => {
+    let baseUrl = `/platform/11/auth/groups/${group}?zone=${zone}`
+
+    try {
+      let response = await axios.get(baseUrl);
+
+      return response.data.groups[0];
+    } catch (error) {
+      if (error.status === 404) {
+        return undefined
+      }
+
+      throw error
+    }
+  }
+
+  const AddUserToGroup = async ({ user, group, zone }) => {
+    let baseUrl = `/platform/11/auth/groups/${group}/members?zone=${zone}`
+
+    let g = await GetGroup({ group: group, zone: zone });
+
+    if (g === undefined) {
+      return undefined
+    }
+
+    const payload = {
+      type: "user",
+      id: user.id.id
+    }
+
+    try {
+      let response = await axios.post(baseUrl, payload);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  const PopulateRootUsersGroup = async ({ zone, users }) => {
+    const results = []
+
+    for (user of Object.keys(users)) {
+      let u = users[user]
+      console.log(`=> Adding ${u.id.name} to 'Run-As-Root'`);
+      await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
+    }
+
+    return results
+  }
+
   GetNodeIPs = async (pool) => {
     const url = '/platform/11/network/interfaces'
     let response
@@ -534,13 +592,17 @@ function GetArguments() {
   }
   await UserQueue.drain();
 
+  if (populate_groups === true) {
+    console.log("POPULATING GROUPS");
+    await PopulateRootUsersGroup({ zone: zone.name, users });
+    process.exit();
+  }
+
   if (validate) {
     process.exit();
   }
 
   process.on('SIGINT', async function () {
-    //console.log("Caught interrupt signal");
-
     for (worker of workers) {
       worker.postMessage({ cmd: 'interrupt' })
     }
