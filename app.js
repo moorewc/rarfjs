@@ -65,8 +65,8 @@ function printFinalReport() {
       User: j.user.id.name,
       SID: j.user.id.id,
       Path: j.path,
-      Files: vsprintf('%7d/%7d (%3d%%)', [j.stats.filesFixed, j.stats.filesScanned, (j.stats.filesFixed / j.stats.filesScanned) * 100]),
-      Folders: vsprintf(`%7d/%7d (%3d%%)`, [j.stats.dirsFixed, j.stats.dirsScanned, (j.stats.dirsFixed / j.stats.dirsScanned) * 100]),
+      Files: vsprintf('%7d/%7d (%3d%%)', [j.stats.filesFixed, j.stats.filesScanned, ((j.stats.filesFixed / j.stats.filesScanned) * 100).toFixed(2)]),
+      Folders: vsprintf(`%7d/%7d (%3d%%)`, [j.stats.dirsFixed, j.stats.dirsScanned, ((j.stats.dirsFixed / j.stats.dirsScanned) * 100).toFixed(2)]),
       Time: ((j.completedAt - j.startedAt) / 1000).toFixed(2),
       CompletedAt: j.completedAt.toISOString()
     }
