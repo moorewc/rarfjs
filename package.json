@@ -10,7 +10,8 @@
   "pkg": {
     "scripts": "worker.js",
     "targets": [
-      "node16-win-x64"
+      "node16-win-x64",
+      "node16-linux-x64"
     ],
     "outputPath": "dist"
   },
