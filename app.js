@@ -22,6 +22,8 @@ let report = {
   }
 }
 
+PAPI_SESSIONS = [];
+
 let repairPath = '';
 
 function sleep(ms) {
@@ -95,7 +97,6 @@ function printFinalReport() {
   console.log(`\nNum Users:  ${report.jobs.length}`);
   console.log(`Average Time:  ${avgTime}s`)
 }
-
 
 function logger(string) {
   let timestamp = new Date().toISOString();
@@ -189,11 +190,12 @@ function GetArguments() {
   })
   const axios = isilon.ssip.axios
 
-  const UserQueue = async.queue(async ({ username, provider }, callback) => {
+  const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
     try {
-      let t = await GetUser({ username: username, provider: provider });
+      let t = await GetUser({ username: username, provider: provider, axios: axios });
 
       if (t) {
+
         users[username.toLowerCase()] = t
         console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
       }
@@ -248,7 +250,6 @@ function GetArguments() {
   }
 
   WorkerCallback = async (payload) => {
-
     if (payload.msg === 'results') {
       let results = payload.results;
       let deltaTime = ((results.completedAt - results.startedAt) / 1000).toFixed(2)
@@ -334,7 +335,7 @@ function GetArguments() {
     return zone
   }
 
-  GetUser = async ({ provider, username }) => {
+  GetUser = async ({ provider, username, axios }) => {
     const provider_id = provider.split(':')[1]
     const url = `/platform/6.1/auth/providers/ads/${provider_id}/search`
 
@@ -569,6 +570,17 @@ function GetArguments() {
   console.log(`Nodes IPs: ` + nodes.join(", "))
   console.log(`Threads:  ${numThreads}`)
 
+  console.log('Establishing Node API Sessions')
+  for (node of nodes) {
+    PAPI_SESSIONS.push(
+      new IsilonClient({
+        ssip: node,
+        username: username,
+        password: password
+      })
+    )
+  }
+
   // Build a list of all AD users.  This should be more efficient than making
   // multiple API calls for individual users when running against large sets
   // of users.  This method works very well when API endpoint is slow.
@@ -587,8 +599,9 @@ function GetArguments() {
   // multiple API calls for individual users when running against large sets
   // of users.  This method works very well when API endpoint is slow.
   console.log('Prefetching Active Directory Users, this may take some time.')
-  for (u of folderRedirects.map((f) => f.split("/").at(-1))) {
-    UserQueue.push({ username: u, provider: provider })
+  for ([i, u] of folderRedirects.map((f) => f.split("/").at(-1)).entries()) {
+    let axios = PAPI_SESSIONS[i % PAPI_SESSIONS.length].ssip.axios;
+    UserQueue.push({ username: u, provider: provider, axios: axios })
   }
   await UserQueue.drain();
 
