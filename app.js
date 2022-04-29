@@ -190,27 +190,6 @@ function GetArguments() {
   })
   const axios = isilon.ssip.axios
 
-  const PopulateRootUsersQueue = async.queue(async ({ user, group, zone }, callback) => {
-    try {
-      await AddUserToGroup({ user, group, zone });
-    } catch (error) {
-      console.log(error);
-    }
-  }, 5);
-
-  const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
-    try {
-      let t = await GetUser({ username: username, provider: provider, axios: axios });
-
-      if (t) {
-
-        users[username.toLowerCase()] = t
-        console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
-      }
-    } catch (error) {
-      throw error;
-    }
-  }, concurrency)
 
 
   GetFolderRedirectsFromFile = async (file) => {
@@ -470,7 +449,7 @@ function GetArguments() {
     }
   }
 
-  const AddUserToGroup = async ({ user, group, zone }) => {
+  const AddUserToGroup = async ({ user, group, zone, axios }) => {
     let baseUrl = `/platform/11/auth/groups/${group}/members?zone=${zone.name}`
     let g;
 
@@ -582,6 +561,8 @@ function GetArguments() {
   console.log(`Nodes IPs: ` + nodes.join(", "))
   console.log(`Threads:  ${numThreads}`)
 
+
+
   console.log('Establishing Node API Sessions')
   for (node of nodes) {
     PAPI_SESSIONS.push(
@@ -592,6 +573,29 @@ function GetArguments() {
       })
     )
   }
+
+  const PopulateRootUsersQueue = async.queue(async ({ user, group, zone, axios }, callback) => {
+    try {
+      await AddUserToGroup({ user, group, zone, axios });
+    } catch (error) {
+      console.log(error);
+    }
+  }, PAPI_SESSIONS.length);
+
+  const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
+    try {
+      let t = await GetUser({ username: username, provider: provider, axios: axios });
+
+      if (t) {
+
+        users[username.toLowerCase()] = t
+        console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
+      }
+    } catch (error) {
+      throw error;
+    }
+  }, PAPI_SESSIONS.length);
+
 
   // Build a list of all AD users.  This should be more efficient than making
   // multiple API calls for individual users when running against large sets
@@ -621,10 +625,11 @@ function GetArguments() {
     console.log("POPULATING GROUPS");
     // await PopulateRootUsersGroup({ zone: zone.name, users });
 
-    for (user of Object.keys(users)) {
+    for ([i, user] of Object.keys(users).entries()) {
       let u = users[user]
       console.log(`=> Adding ${u.id.name} to 'Run-As-Root'`);
-      PopulateRootUsersQueue.push({ user: u, group: 'Run-As-Root', zone: zone })
+      let axios = PAPI_SESSIONS[i % PAPI_SESSIONS.length].ssip.axios;
+      PopulateRootUsersQueue.push({ user: u, group: 'Run-As-Root', zone: zone, axios: axios })
       // await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
     }
     await PopulateRootUsersQueue.drain();
