@@ -36,7 +36,7 @@ var reportHeader = heredoc.strip(function () {/*
 +==========================+=============+===============+==============================================================+========================+========================+=========+
 | Completed At             | Status      | User          | Path                                                         | Files                  | Folders                | Time    |
 +--------------------------+-------------+---------------+--------------------------------------------------------------+------------------------+------------------------+---------+*/
-})
+});
 
 function printFinalReport() {
   let interrupted = false;
@@ -189,6 +189,10 @@ function GetArguments() {
     password: password
   })
   const axios = isilon.ssip.axios
+
+  const PopulateRootUsersQueue = async.queue(async ({ user, group, zone }, callback) => {
+    await AddUserToGroup({ user, group, zone });
+  }, 32);
 
   const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
     try {
@@ -607,7 +611,15 @@ function GetArguments() {
 
   if (populate_groups === true) {
     console.log("POPULATING GROUPS");
-    await PopulateRootUsersGroup({ zone: zone.name, users });
+    // await PopulateRootUsersGroup({ zone: zone.name, users });
+
+    for (user of Object.keys(users)) {
+      let u = users[user]
+      console.log(`=> Adding ${u.id.name} to 'Run-As-Root'`);
+      PopulateRootUsersQueue.push({ user: u, group: 'Run-As-Root', zone: zone })
+      // await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
+    }
+
     process.exit();
   }
 
