@@ -594,7 +594,7 @@ function GetArguments() {
     } catch (error) {
       throw error;
     }
-  }, PAPI_SESSIONS.length);
+  }, 32);
 
 
   // Build a list of all AD users.  This should be more efficient than making
