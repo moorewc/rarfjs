@@ -196,7 +196,7 @@ function GetArguments() {
     } catch (error) {
       console.log(error);
     }
-  }, 32);
+  }, 5);
 
   const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
     try {
