@@ -191,7 +191,11 @@ function GetArguments() {
   const axios = isilon.ssip.axios
 
   const PopulateRootUsersQueue = async.queue(async ({ user, group, zone }, callback) => {
-    await AddUserToGroup({ user, group, zone });
+    try {
+      await AddUserToGroup({ user, group, zone });
+    } catch (error) {
+      console.log(error);
+    }
   }, 32);
 
   const UserQueue = async.queue(async ({ username, provider, axios }, callback) => {
@@ -467,10 +471,14 @@ function GetArguments() {
   }
 
   const AddUserToGroup = async ({ user, group, zone }) => {
-    let baseUrl = `/platform/11/auth/groups/${group}/members?zone=${zone}`
+    let baseUrl = `/platform/11/auth/groups/${group}/members?zone=${zone.name}`
+    let g;
 
-    let g = await GetGroup({ group: group, zone: zone });
-
+    try {
+      g = await GetGroup({ group: group, zone: zone.name });
+    } catch (error) {
+      console.log(error);
+    }
     if (g === undefined) {
       return undefined
     }
@@ -488,17 +496,17 @@ function GetArguments() {
     }
   }
 
-  const PopulateRootUsersGroup = async ({ zone, users }) => {
-    const results = []
+  // const PopulateRootUsersGroup = async ({ zone, users }) => {
+  //   const results = []
 
-    for (user of Object.keys(users)) {
-      let u = users[user]
-      console.log(`=> Adding ${u.id.name} to 'Run-As-Root'`);
-      await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
-    }
+  //   for (user of Object.keys(users)) {
+  //     let u = users[user]
+  //     console.log(`=> Adding ${u.id.name} to 'Run-As-Root'`);
+  //     await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
+  //   }
 
-    return results
-  }
+  //   return results
+  // }
 
   GetNodeIPs = async (pool) => {
     const url = '/platform/11/network/interfaces'
@@ -619,7 +627,7 @@ function GetArguments() {
       PopulateRootUsersQueue.push({ user: u, group: 'Run-As-Root', zone: zone })
       // await AddUserToGroup({ user: u, group: 'Run-As-Root', zone: zone });
     }
-
+    await PopulateRootUsersQueue.drain();
     process.exit();
   }
 
