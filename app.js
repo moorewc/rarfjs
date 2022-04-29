@@ -453,14 +453,14 @@ function GetArguments() {
     let baseUrl = `/platform/11/auth/groups/${group}/members?zone=${zone.name}`
     let g;
 
-    try {
-      g = await GetGroup({ group: group, zone: zone.name });
-    } catch (error) {
-      console.log(error);
-    }
-    if (g === undefined) {
-      return undefined
-    }
+    // try {
+    //   g = await GetGroup({ group: group, zone: zone.name });
+    // } catch (error) {
+    //   console.log(error);
+    // }
+    // if (g === undefined) {
+    //   return undefined
+    // }
 
     const payload = {
       type: "user",
@@ -469,6 +469,7 @@ function GetArguments() {
 
     try {
       let response = await axios.post(baseUrl, payload);
+      console.log(`++> Added ${u.id.name} to '${group}'`);
       return true;
     } catch (error) {
       return false;
@@ -594,7 +595,7 @@ function GetArguments() {
     } catch (error) {
       throw error;
     }
-  }, 32);
+  }, concurrency);
 
 
   // Build a list of all AD users.  This should be more efficient than making
