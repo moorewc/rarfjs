@@ -1,11 +1,24 @@
 stages:
+    - mirror
     - build
     - release
+
+mirror:
+    image:
+        name: alpine/git:latest
+    stage: mirror
+    script: |
+        git tag mirror
+        git tag -d mirror
+    rules:
+        - if: '$CI_COMMIT_TAG =~ /^/d+\./d+\.\d+$/'
 
 build:
     image:
         name: node:16-bullseye
     stage: build
+    need:
+        job: mirror
     before_script:
         - echo $CI_JOB_ID
         - echo GE_JOB_ID=$CI_JOB_ID >> build.env
@@ -22,14 +35,14 @@ build:
         reports:
             dotenv: build.env
         expire_in:  100 years
-    only:
-        - tags
+    rules:
+        - if: '$CI_COMMIT_TAG =~ /^/d+\./d+\.\d+$/'
 
 release:
     stage: release
     image: registry.gitlab.com/gitlab-org/release-cli:latest
     rules:
-        - if: $CI_COMMIT_TAG
+        - if: '$CI_COMMIT_TAG =~ /^/d+\./d+\.\d+$/'
     script:
         - echo "Running release_job"
         - echo "Previous Job ID is printed below"
