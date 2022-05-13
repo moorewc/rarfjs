@@ -1,0 +1,64 @@
+stages:
+    - mirror
+    - build
+    - release
+
+mirror:
+    image:
+        name: alpine/git:latest
+    stage: mirror
+    script: |
+        git tag mirror
+        git tag -d mirror
+    rules:
+        - if: $CI_COMMIT_TAG != "mirror"
+
+build:
+    image:
+        name: node:16-bullseye
+    stage: build
+    needs:
+        job: mirror
+    before_script:
+        - echo $CI_JOB_ID
+        - echo GE_JOB_ID=$CI_JOB_ID >> build.env
+        - npm i pkg -g
+        - npm i
+    script: |
+        pkg .
+        echo "Executables generated successfully"
+    artifacts:
+        name: "$CI_COMMIT_REF_NAME"
+        paths:
+            - dist/run-as-root-fix-linux
+            - dist/run-as-root-fix-win.exe
+        reports:
+            dotenv: build.env
+        expire_in:  100 years
+    rules:
+        - if: $CI_COMMIT_TAG != "mirror"
+
+release:
+    stage: release
+    image: registry.gitlab.com/gitlab-org/release-cli:latest
+    rules:
+        - if: $CI_COMMIT_TAG != "mirror"
+    script:
+        - echo "Running release_job"
+        - echo "Previous Job ID is printed below"
+        - echo "${GE_JOB_ID}"
+        - ls dist/
+    needs:
+        - job: build
+          artifacts: true
+    release:
+        name: 'Release $CI_COMMIT_TAG'
+        description: 'Created using release-ci'
+        tag_name: '$CI_COMMIT_TAG'
+        ref: '$CI_COMMIT_TAG'
+        assets:
+            links:
+                - name: 'Linux Executable'
+                  url: ${CI_PROJECT_URL}/-/jobs/${GE_JOB_ID}/artifacts/raw/dist/run-as-root-fix-linux
+                - name: 'Windows Executable'
+                  url: ${CI_PROJECT_URL}/-/jobs/${GE_JOB_ID}/artifacts/raw/dist/run-as-root-fix-win.exe
