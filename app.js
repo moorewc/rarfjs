@@ -180,6 +180,7 @@ function GetArguments() {
   const { username, password } = await GetCredentials()
 
   let workers = [];
+  let workers2 = [];
   let users = []
   repairPath = path;
 
@@ -281,7 +282,13 @@ function GetArguments() {
       if (nextPath) {
         uname = nextPath.substring(nextPath.lastIndexOf('/') + 1).toLowerCase()
 
+
         workers[payload.id].postMessage({ cmd: 'process_user', path: nextPath, user: users[uname] })
+
+        for (worker of workers2) {
+          worker.postMessage({ cmd: 'close_files', path: path, user: users[uname] })
+        }
+
       } else {
         logger(`${payload.name} COMPLETE, CLOSING.`)
 
@@ -289,6 +296,9 @@ function GetArguments() {
         workers[payload.id].unref()
         numThreads--;
         if (numThreads == 0) {
+          for (worker of workers2) {
+            worker.postMessage({ cmd: 'shutdown', path: path, user: users[uname] })
+          }
           printFinalReport();
         }
       }
@@ -298,6 +308,20 @@ function GetArguments() {
   CreateWorker = (config, id) => {
     const name = 'THREAD' + (id + 1).toString().padStart(3, '0')
     const worker = new Worker(`${__dirname}/worker.js`, {
+      workerData: { config, name, id, concurrency, log_level }
+    })
+
+    worker.on('error', (err) => {
+      throw err
+    })
+    worker.on('message', WorkerCallback)
+
+    return worker
+  }
+
+  CreateFileWorker = (config, id) => {
+    const name = 'SESSION' + (id + 1).toString().padStart(2, '0')
+    const worker = new Worker(`${__dirname}/worker2.js`, {
       workerData: { config, name, id, concurrency, log_level }
     })
 
@@ -646,6 +670,10 @@ function GetArguments() {
       worker.postMessage({ cmd: 'interrupt' })
     }
 
+    for (worker of workers2) {
+      worker.postMessage({ cmd: 'shutdown' })
+    }
+
     await sleep(1000);
 
     printFinalReport();
@@ -655,8 +683,6 @@ function GetArguments() {
     '======================================================================================='
   )
 
-
-
   for (let i = 0; i < numThreads; i++) {
     config = {
       ssip: nodes[i % nodes.length],
@@ -664,6 +690,7 @@ function GetArguments() {
       password: password
     }
 
-    workers.push(CreateWorker(config, i))
+    workers.push(CreateWorker(config, i));
+    workers2.push(CreateFileWorker(config, i));
   }
 })();
