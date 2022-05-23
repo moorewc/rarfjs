@@ -1,17 +1,6 @@
 stages:
-    - mirror
     - build
     - release
-
-mirror:
-    image:
-        name: alpine/git:latest
-    stage: mirror
-    script: |
-        git tag mirror
-        git tag -d mirror
-    rules:
-        - if: $CI_COMMIT_TAG != "mirror"
 
 build:
     image:
@@ -36,7 +25,7 @@ build:
             dotenv: build.env
         expire_in: 100 years
     rules:
-        - if: $CI_COMMIT_TAG != "mirror"
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 release:
     stage: release
