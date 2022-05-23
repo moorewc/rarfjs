@@ -199,7 +199,7 @@ function GetArguments() {
 
     console.log(`Adding FolderRedirects from ${file}`)
 
-    for (line of data.toString().split('\r\n')) {
+    for (line of data.toString().trim().split('\r\n')) {
       if (line) {
 
         try {
