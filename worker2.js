@@ -18,14 +18,14 @@ const FileCloseQueue = async.queue(async ({ file }, callback) => {
     const url = `/platform/11/protocols/smb/openfiles/${file.id}`;
     const response = await isilon.ssip.axios.delete(url);
     logger(`Closed ${file.file} for ${file.user}`)
-}, 10);
+}, 1);
 
 const SessionCloseQueue = async.queue(async ({ session }, callback) => {
     const username = encodeURIComponent(session.user);
     const url = `/platform/11/protocols/smb/sessions/${session.computer}/${username}`
     const response = await isilon.ssip.axios.delete(url);
     logger(`CLOSED SESSION FOR ${session.user}`)
-});
+}, 1);
 
 async function GetOpenFilesForShare({ path, user }) {
     const url = `/platform/11/protocols/smb/openfiles`;
@@ -62,7 +62,6 @@ async function closeOpenFiles({ path, user }) {
 
 async function getOpenSessions({ user }) {
     const url = `/platform/1/protocols/smb/sessions`;
-
     const response = await isilon.ssip.axios.get(url);
 
     return response.data.sessions.filter((s) => {
