@@ -18,7 +18,7 @@ build:
         name: node:16-bullseye
     stage: build
     needs:
-        job: mirror
+        - job: mirror
     before_script:
         - echo $CI_JOB_ID
         - echo GE_JOB_ID=$CI_JOB_ID >> build.env
@@ -34,7 +34,7 @@ build:
             - dist/run-as-root-fix-win.exe
         reports:
             dotenv: build.env
-        expire_in:  100 years
+        expire_in: 100 years
     rules:
         - if: $CI_COMMIT_TAG != "mirror"
 
@@ -52,13 +52,13 @@ release:
         - job: build
           artifacts: true
     release:
-        name: 'Release $CI_COMMIT_TAG'
-        description: 'Created using release-ci'
-        tag_name: '$CI_COMMIT_TAG'
-        ref: '$CI_COMMIT_TAG'
+        name: "Release $CI_COMMIT_TAG"
+        description: "Created using release-ci"
+        tag_name: "$CI_COMMIT_TAG"
+        ref: "$CI_COMMIT_TAG"
         assets:
             links:
-                - name: 'Linux Executable'
+                - name: "Linux Executable"
                   url: ${CI_PROJECT_URL}/-/jobs/${GE_JOB_ID}/artifacts/raw/dist/run-as-root-fix-linux
-                - name: 'Windows Executable'
+                - name: "Windows Executable"
                   url: ${CI_PROJECT_URL}/-/jobs/${GE_JOB_ID}/artifacts/raw/dist/run-as-root-fix-win.exe
