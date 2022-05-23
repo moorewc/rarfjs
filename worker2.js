@@ -65,8 +65,12 @@ async function getOpenSessions({ user }) {
 
     const response = await isilon.ssip.axios.get(url);
 
-    return response.data.sessions;
+    return response.data.sessions.filter((s) => {
+        a = s.user.toLowerCase().split('@')[0];
+        b = user.id.name.toLowerCase();
 
+        return user.id.name.includes(a);
+    });
 }
 
 async function closeOpenSessions({ user }) {
