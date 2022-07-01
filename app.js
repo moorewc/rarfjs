@@ -201,21 +201,30 @@ function GetArguments() {
     console.log(`Adding FolderRedirects from ${file}`)
 
     for (line of data.toString().trim().split('\r\n')) {
-      if (line) {
-        let username = user_lookup_table[line];
-        console.log(`${line} => ${username}`);
+      let username = user_lookup_table[line.toLowerCase()];
+      if (username) {
         try {
           const _path = await isilon.namespace.get(`${path}/${username}`)
-          let exists = await _path.exists();
-          if (exists) {
-            console.log(`+ ${_path.path} [${line}]`)
-            results.push(_path.path);
-          } else {
-            console.log(`- ${_path.path} [Path Not Found]`)
-          }
+          // 
+          //  This doesn't have to happen anymore, because we are prevalidating
+          //  users when we normalize the user list.
+          //
+
+          // let exists = await _path.exists();
+          // if (exists) {
+          //   console.log(`+ ${_path.path} [${line}]`)
+          //   results.push(_path.path);
+          // } else {
+          //   console.log(`- ${_path.path} [Path Not Found]`)
+          // }
+
+          console.log(`+ ${_path.path} [${line}]`)
+          results.push(_path.path);
         } catch (error) {
           throw error;
         }
+      } else {
+        console.log(`- ${path}/${line} [Path Not Found]`)
       }
     }
 
@@ -627,7 +636,6 @@ function GetArguments() {
       let t = await GetUser({ username: username, provider: provider, axios: axios });
 
       if (t) {
-
         users[username.toLowerCase()] = t
         console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
       }
