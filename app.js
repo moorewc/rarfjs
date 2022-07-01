@@ -230,7 +230,7 @@ function GetArguments() {
       }
     }
 
-    console.log(resuls);
+    console.log(results);
     return results;
   }
 
