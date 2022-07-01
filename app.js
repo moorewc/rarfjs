@@ -198,13 +198,15 @@ function GetArguments() {
 
     let user_lookup_table = await NormalizeUserList(path);
 
+    console.log(user_lookup_table);
+
     console.log(`Adding FolderRedirects from ${file}`)
 
     for (line of data.toString().trim().split('\r\n')) {
       let username = user_lookup_table[line.toLowerCase()];
       if (username) {
         try {
-          const _path = await isilon.namespace.get(`${path}/${username}`)
+          // const _path = await isilon.namespace.get(`${path}/${username}`)
           // 
           //  This doesn't have to happen anymore, because we are prevalidating
           //  users when we normalize the user list.
@@ -218,8 +220,8 @@ function GetArguments() {
           //   console.log(`- ${_path.path} [Path Not Found]`)
           // }
 
-          console.log(`+ ${_path.path} [${line}]`)
-          results.push(_path.path);
+          console.log(`+ ${path}/${username} [${line}]`);
+          results.push(`${path}/${username}`);
         } catch (error) {
           throw error;
         }
@@ -228,6 +230,7 @@ function GetArguments() {
       }
     }
 
+    console.log(resuls);
     return results;
   }
 
@@ -609,8 +612,6 @@ function GetArguments() {
   console.log(`Hostname: ${pool.sc_dns_zone}`)
   console.log(`Nodes IPs: ` + nodes.join(", "))
   console.log(`Threads:  ${numThreads}`)
-
-
 
   console.log('Establishing Node API Sessions')
   for (node of nodes) {
