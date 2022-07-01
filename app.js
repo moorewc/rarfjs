@@ -182,6 +182,7 @@ function GetArguments() {
   let workers = [];
   let workers2 = [];
   let users = []
+
   repairPath = path;
 
   const isilon = new IsilonClient({
@@ -191,22 +192,23 @@ function GetArguments() {
   })
   const axios = isilon.ssip.axios
 
-
-
   GetFolderRedirectsFromFile = async (file) => {
     const data = fs.readFileSync(file);
     let results = [];
+
+    let user_lookup_table = await NormalizeUserList(path);
 
     console.log(`Adding FolderRedirects from ${file}`)
 
     for (line of data.toString().trim().split('\r\n')) {
       if (line) {
-
+        let username = user_lookup_table[line];
+        console.log(`${line} => ${username}`);
         try {
-          const _path = await isilon.namespace.get(`${path}/${line}`)
+          const _path = await isilon.namespace.get(`${path}/${username}`)
           let exists = await _path.exists();
           if (exists) {
-            console.log(`+ ${_path.path}`)
+            console.log(`+ ${_path.path} [${line}]`)
             results.push(_path.path);
           } else {
             console.log(`- ${_path.path} [Path Not Found]`)
@@ -512,6 +514,19 @@ function GetArguments() {
   //   return results
   // }
 
+  NormalizeUserList = async (path) => {
+    users = [];
+
+    console.log(`Normalizing Usernames from ${path}, this may take some time...`);
+    let folder = await isilon.namespace.get(path);
+
+    for (child of await folder.readdir()) {
+      users[child.name.toLowerCase()] = child.name;
+    }
+
+    return users;
+  }
+
   GetNodeIPs = async (pool) => {
     const url = '/platform/11/network/interfaces'
     let response
@@ -620,6 +635,7 @@ function GetArguments() {
       throw error;
     }
   }, concurrency);
+
 
 
   // Build a list of all AD users.  This should be more efficient than making
