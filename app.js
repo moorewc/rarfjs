@@ -274,7 +274,6 @@ function GetArguments() {
       staged_users[payload.uname]--;
 
       if (staged_users[payload.uname] === 0) {
-        //logger(`REPARING PERMISSIONS FOR ${payload.uname}`)
         workers[payload.id].postMessage({ cmd: 'repair_permissions', path: payload.path, user: users[payload.uname], uname: payload.uname })
       }
     }

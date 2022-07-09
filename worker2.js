@@ -14,23 +14,35 @@ function logger(string) {
 
 logger(`CONNECTING TO ${config.ssip}`)
 
-var FileCloseQueue = [];
-var SessionCloseQueue = [];
+const FileCloseQueue = async.queue(async ({ file }, callback) => {
+    const url = `/platform/11/protocols/smb/openfiles/${file.id}`;
+    const response = await isilon.ssip.axios.delete(url);
+    logger(`CLOSED FILE ${file.file} FOR ${file.user}`)
+}, 10);
 
-// const FileCloseQueue = async.queue(async ({ file }, callback) => {
-//     const url = `/platform/11/protocols/smb/openfiles/${file.id}`;
-//     const response = await isilon.ssip.axios.delete(url);
-//     logger(`Closed ${file.file} for ${file.user}`)
-// }, 1);
+const SessionCloseQueue = async.queue(async ({ session }, callback) => {
+    const username = encodeURIComponent(session.user);
+    const url = `/platform/11/protocols/smb/sessions/${session.computer}/${username}`
+    const response = await isilon.ssip.axios.delete(url);
+    logger(`CLOSED SESSION FOR ${session.user}`)
+}, 1);
 
-// const SessionCloseQueue = async.queue(async ({ session }, callback) => {
-//     const username = encodeURIComponent(session.user);
-//     const url = `/platform/11/protocols/smb/sessions/${session.computer}/${username}`
-//     const response = await isilon.ssip.axios.delete(url);
-//     logger(`CLOSED SESSION FOR ${session.user}`)
-// }, 1);
+
+const UserQueue = async.queue(async ({ path, user, uname }, callback) => {
+    let sessions = await getOpenSessions({ user });
+    for (session of sessions) {
+        SessionCloseQueue.push({ session });
+    }
+
+    let files = await GetOpenFilesForShare({ path, user });
+    for (file of files) {
+        FileCloseQueue.push({ file });
+    }
+}, 1);
 
 async function GetOpenFilesForShare({ path, user }) {
+
+
     const url = `/platform/11/protocols/smb/openfiles`;
 
     const response = await isilon.ssip.axios.get(url);
@@ -55,14 +67,6 @@ async function GetOpenFilesForShare({ path, user }) {
     return openfiles
 }
 
-async function closeOpenFiles({ path, user }) {
-    let files = await GetOpenFilesForShare({ path, user })
-
-    for (file of files) {
-        FileCloseQueue.push({ file });
-    }
-}
-
 async function getOpenSessions({ user }) {
     const url = `/platform/1/protocols/smb/sessions`;
     const response = await isilon.ssip.axios.get(url);
@@ -77,28 +81,15 @@ async function getOpenSessions({ user }) {
     });
 }
 
-async function closeOpenSessions({ user }) {
-    let sessions = await getOpenSessions({ user });
-
-    for (session of sessions) {
-        SessionCloseQueue.push({ session });
-    }
-}
-
 parentPort.on('message', async ({ cmd, path, user, uname, id }) => {
     if (cmd === 'close_open_files') {
         if (user) {
-            let openSessions = await getOpenSessions({ user });
-            // await closeOpenFiles({ path, user })
-            // await closeOpenSessions({ user })
+            UserQueue.push({ path, user, uname });
         }
         parentPort.postMessage({ msg: 'repair_permissions', path, uname, id });
     }
 
     if (cmd === 'shutdown') {
-        //      logger("SHUTTING DOWN");
         process.exit();
-
     }
-
 });
