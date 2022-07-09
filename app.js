@@ -56,24 +56,30 @@ function printFinalReport() {
   console.log(reportHeader);
 
   report.jobs.map((j) => {
-    status = j.status.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+    if (j.status) {
 
-    if (status === 'INTERRUPTED') {
-      interrupted = true;
-    }
 
-    return {
-      Status: status,
-      User: j.user.id.name,
-      SID: j.user.id.id,
-      Path: j.path,
-      Files: vsprintf('%7d/%7d (%3d%%)', [j.stats.filesFixed, j.stats.filesScanned, ((j.stats.filesFixed / j.stats.filesScanned) * 100).toFixed(2)]),
-      Folders: vsprintf(`%7d/%7d (%3d%%)`, [j.stats.dirsFixed, j.stats.dirsScanned, ((j.stats.dirsFixed / j.stats.dirsScanned) * 100).toFixed(2)]),
-      Time: ((j.completedAt - j.startedAt) / 1000).toFixed(2),
-      CompletedAt: j.completedAt.toISOString()
+      status = j.status.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+
+      if (status === 'INTERRUPTED') {
+        interrupted = true;
+      }
+
+      return {
+        Status: status,
+        User: j.user.id.name,
+        SID: j.user.id.id,
+        Path: j.path,
+        Files: vsprintf('%7d/%7d (%3d%%)', [j.stats.filesFixed, j.stats.filesScanned, ((j.stats.filesFixed / j.stats.filesScanned) * 100).toFixed(2)]),
+        Folders: vsprintf(`%7d/%7d (%3d%%)`, [j.stats.dirsFixed, j.stats.dirsScanned, ((j.stats.dirsFixed / j.stats.dirsScanned) * 100).toFixed(2)]),
+        Time: ((j.completedAt - j.startedAt) / 1000).toFixed(2),
+        CompletedAt: j.completedAt.toISOString()
+      }
     }
   }).forEach(j => {
-    console.log(vsprintf('| %s | %-11s | %-13s | %-60s | %22s | %22s | %6.2fs |', [j.CompletedAt, j.Status, j.User, j.Path, j.Files, j.Folders, j.Time]));
+    if (j) {
+      console.log(vsprintf('| %s | %-11s | %-13s | %-60s | %22s | %22s | %6.2fs |', [j.CompletedAt, j.Status, j.User, j.Path, j.Files, j.Folders, j.Time]));
+    }
   });
   console.log("+--------------------------+-------------+---------------+--------------------------------------------------------------+------------------------+------------------------+---------+")
 
@@ -181,7 +187,8 @@ function GetArguments() {
 
   let workers = [];
   let workers2 = [];
-  let users = []
+  let users = [];
+  let staged_users = [];
 
   repairPath = path;
 
@@ -198,28 +205,12 @@ function GetArguments() {
 
     let user_lookup_table = await NormalizeUserList(path);
 
-    console.log(user_lookup_table);
-
     console.log(`Adding FolderRedirects from ${file}`)
 
     for (line of data.toString().trim().split('\r\n')) {
       let username = user_lookup_table[line.toLowerCase()];
       if (username) {
         try {
-          // const _path = await isilon.namespace.get(`${path}/${username}`)
-          // 
-          //  This doesn't have to happen anymore, because we are prevalidating
-          //  users when we normalize the user list.
-          //
-
-          // let exists = await _path.exists();
-          // if (exists) {
-          //   console.log(`+ ${_path.path} [${line}]`)
-          //   results.push(_path.path);
-          // } else {
-          //   console.log(`- ${_path.path} [Path Not Found]`)
-          // }
-
           console.log(`+ ${path}/${username} [${line}]`);
           results.push(`${path}/${username}`);
         } catch (error) {
@@ -229,8 +220,6 @@ function GetArguments() {
         console.log(`- ${path}/${line} [Path Not Found]`)
       }
     }
-
-    console.log(results);
     return results;
   }
 
@@ -252,7 +241,7 @@ function GetArguments() {
   }
 
   WorkerCallback = async (payload) => {
-    if (payload.msg === 'results') {
+    if (payload.msg === 'update_results') {
       let results = payload.results;
       let deltaTime = ((results.completedAt - results.startedAt) / 1000).toFixed(2)
 
@@ -274,44 +263,45 @@ function GetArguments() {
 
         logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
       } catch (error) {
-
       }
-
-      // let fileStats = `${results.stats.filesFixed}/${results.stats.filesScanned} (${(results.stats.filesFixed / results.stats.filesScanned) * 100}%)`
-      // let dirStats = `${results.stats.dirsFixed}/${results.stats.dirsScanned} (${(results.stats.dirsFixed / results.stats.dirsScanned) * 100}%)`
-
-      // let status = payload.shutdown === true ? chalk.red('INTERRUPTED') : chalk.green('COMPLETED');
-      // results.status = status;
-
-      // logger(`${status} ${results.path} [Files:  ${fileStats} | Dirs:  ${dirStats} | Time:  ${deltaTime}s | IO/s: ${iops}]`)
 
       if (payload.shutdown === true) {
         workers[payload.id].postMessage({ cmd: 'shutdown' })
       }
     }
 
-    if (payload.msg === 'next') {
-      nextPath = folderRedirects.pop()
+    if (payload.msg == 'repair_permissions') {
+      staged_users[payload.uname]--;
+
+      if (staged_users[payload.uname] === 0) {
+        //logger(`REPARING PERMISSIONS FOR ${payload.uname}`)
+        workers[payload.id].postMessage({ cmd: 'repair_permissions', path: payload.path, user: users[payload.uname], uname: payload.uname })
+      }
+    }
+
+    if (payload.msg === 'close_open_files') {
+      nextPath = folderRedirects.pop();
 
       if (nextPath) {
         uname = nextPath.substring(nextPath.lastIndexOf('/') + 1).toLowerCase()
 
+        staged_users[uname] = 0;
 
-        workers[payload.id].postMessage({ cmd: 'process_user', path: nextPath, user: users[uname] })
-
+        logger(`CLOSING OPEN FILES AND SESSIONS FOR ${uname}`);
         for (worker of workers2) {
-          worker.postMessage({ cmd: 'close_files', path: path, user: users[uname] })
+          staged_users[uname]++;
+          worker.postMessage({ cmd: 'close_open_files', path: path, user: users[uname], uname: uname, id: payload.id })
         }
-
       } else {
-        logger(`${payload.name} COMPLETE, CLOSING.`)
+        logger(`${payload.name} COMPLETE, SHUTTING DOWN.`)
 
         workers[payload.id].removeListener('message', WorkerCallback)
         workers[payload.id].unref()
         numThreads--;
+
         if (numThreads == 0) {
           for (worker of workers2) {
-            worker.postMessage({ cmd: 'shutdown', path: path, user: users[uname] })
+            worker.postMessage({ cmd: 'shutdown' })
           }
           printFinalReport();
         }
@@ -639,13 +629,13 @@ function GetArguments() {
       if (t) {
         users[username.toLowerCase()] = t
         console.log(`=> ${username} [${t.id.id}][${t.id.name}]`)
+      } else {
+        console.log(`-> ${username} does not have an AD account.`)
       }
     } catch (error) {
       throw error;
     }
   }, concurrency);
-
-
 
   // Build a list of all AD users.  This should be more efficient than making
   // multiple API calls for individual users when running against large sets
@@ -708,14 +698,37 @@ function GetArguments() {
     '======================================================================================='
   )
 
+  for (let i = 0; i < nodes.length; i++) {
+    config = {
+      ssip: nodes[i % nodes.length],
+      username: username,
+      password: password
+    }
+    workers2.push(CreateFileWorker(config, i));
+    await sleep(100);
+  }
+
+  await sleep(1000);
+
   for (let i = 0; i < numThreads; i++) {
     config = {
       ssip: nodes[i % nodes.length],
       username: username,
       password: password
     }
-
     workers.push(CreateWorker(config, i));
-    workers2.push(CreateFileWorker(config, i));
+    await sleep(100);
   }
+
+  await sleep(1000);
+
+  for (let i = 0; i < numThreads; i++) {
+    config = {
+      ssip: nodes[i % nodes.length],
+      username: username,
+      password: password
+    }
+    workers[i].postMessage({ cmd: 'start_processing' });
+  }
+
 })();

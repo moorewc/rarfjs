@@ -14,18 +14,21 @@ function logger(string) {
 
 logger(`CONNECTING TO ${config.ssip}`)
 
-const FileCloseQueue = async.queue(async ({ file }, callback) => {
-    const url = `/platform/11/protocols/smb/openfiles/${file.id}`;
-    const response = await isilon.ssip.axios.delete(url);
-    logger(`Closed ${file.file} for ${file.user}`)
-}, 1);
+var FileCloseQueue = [];
+var SessionCloseQueue = [];
 
-const SessionCloseQueue = async.queue(async ({ session }, callback) => {
-    const username = encodeURIComponent(session.user);
-    const url = `/platform/11/protocols/smb/sessions/${session.computer}/${username}`
-    const response = await isilon.ssip.axios.delete(url);
-    logger(`CLOSED SESSION FOR ${session.user}`)
-}, 1);
+// const FileCloseQueue = async.queue(async ({ file }, callback) => {
+//     const url = `/platform/11/protocols/smb/openfiles/${file.id}`;
+//     const response = await isilon.ssip.axios.delete(url);
+//     logger(`Closed ${file.file} for ${file.user}`)
+// }, 1);
+
+// const SessionCloseQueue = async.queue(async ({ session }, callback) => {
+//     const username = encodeURIComponent(session.user);
+//     const url = `/platform/11/protocols/smb/sessions/${session.computer}/${username}`
+//     const response = await isilon.ssip.axios.delete(url);
+//     logger(`CLOSED SESSION FOR ${session.user}`)
+// }, 1);
 
 async function GetOpenFilesForShare({ path, user }) {
     const url = `/platform/11/protocols/smb/openfiles`;
@@ -68,7 +71,9 @@ async function getOpenSessions({ user }) {
         a = s.user.toLowerCase().split('@')[0];
         b = user.id.name.toLowerCase();
 
-        return user.id.name.includes(a);
+        return a == b;
+
+        //return user.id.name.includes(a);
     });
 }
 
@@ -80,16 +85,20 @@ async function closeOpenSessions({ user }) {
     }
 }
 
-parentPort.on('message', async ({ cmd, path, user }) => {
-    if (cmd === 'close_files') {
+parentPort.on('message', async ({ cmd, path, user, uname, id }) => {
+    if (cmd === 'close_open_files') {
         if (user) {
-            await closeOpenFiles({ path, user })
-            await closeOpenSessions({ user })
+            let openSessions = await getOpenSessions({ user });
+            // await closeOpenFiles({ path, user })
+            // await closeOpenSessions({ user })
         }
+        parentPort.postMessage({ msg: 'repair_permissions', path, uname, id });
     }
 
     if (cmd === 'shutdown') {
-        logger("SHUTTING DOWN");
+        //      logger("SHUTTING DOWN");
         process.exit();
+
     }
+
 });

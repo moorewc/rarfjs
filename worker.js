@@ -17,10 +17,10 @@ function logger(string) {
 function completeJob({ shutdown = false }) {
   job.completedAt = new Date();
 
-  parentPort.postMessage({ msg: 'results', id: id, results: job, shutdown: shutdown })
+  parentPort.postMessage({ msg: 'update_results', id: id, results: job, shutdown: shutdown })
 
   if (!shutdown) {
-    parentPort.postMessage({ msg: 'next', id: id, name: name })
+    parentPort.postMessage({ msg: 'close_open_files', id: id, name: name })
   }
 }
 
@@ -163,9 +163,10 @@ async function addUserToGroup({ user, group }) {
 
 logger(`CONNECTING TO ${config.ssip}`)
 
-parentPort.postMessage({ msg: 'next', id: id, name: name })
-
-parentPort.on('message', async ({ cmd, path, user }) => {
+parentPort.on('message', async ({ cmd, path, user, uname }) => {
+  if (cmd === 'start_processing') {
+    parentPort.postMessage({ msg: 'close_open_files', id: id, name: name })
+  }
   if (cmd === 'interrupt') {
     completeJob({ shutdown: true });
   }
@@ -175,9 +176,9 @@ parentPort.on('message', async ({ cmd, path, user }) => {
     process.exit();
   }
 
-  if (cmd === 'process_user') {
+  if (cmd === 'repair_permissions') {
     if (user) {
-      logger(`PROCESSING ${path} (${user.id.id})`)
+      logger(`PROCESSING ${path} (${user.id.name} :: ${user.id.id})`)
 
       // The path variable is sent as a string from master process and the
       // rest of the workflow expects an isilon namespace object.
@@ -254,7 +255,7 @@ parentPort.on('message', async ({ cmd, path, user }) => {
         throw error
       }
     } else {
-      logger(chalk.yellow('SKIPPING') + ` ${path} (USER NOT FOUND)`)
+      logger(chalk.yellow('SKIPPING') + ` ${path}/${uname} (USER NOT FOUND)`)
     }
     completeJob({ shutdown: false });
   }
