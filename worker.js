@@ -44,6 +44,16 @@ async function walkTree({ path, user }) {
 const fileQueue = async.queue(async ({ path, user }, callback) => {
   let response
 
+  let SIDS = [
+    'S-1-5-21-2042961196-1878016268-396375212-407955',
+    'S-1-5-21-2042961196-1878016268-396375212-407877',
+    'S-1-5-21-2042961196-1878016268-396375212-475325',
+    'S-1-5-21-2042961196-1878016268-396375212-407802',
+    'S-1-5-21-2042961196-1878016268-396375212-407708',
+    'S-1-5-21-2042961196-1878016268-396375212-570187',
+    'S-1-5-21-2042961196-1878016268-396375212-407705'
+  ];
+
   if (log_level >= 3) {
     let type = path.type === "container" ? "D" : "F"
     logger(`SCANNING ${type} ${path.path}`)
@@ -66,8 +76,7 @@ const fileQueue = async.queue(async ({ path, user }, callback) => {
   changed = false
 
   for (acl of response.acl) {
-    if (acl.trustee.name === 'root') {
-
+    if (acl.trustee.name === 'root' || acl.trustee.id in SIDs) {
       changed = true
       acl.trustee.name = user.id.name
       acl.trustee.id = user.id.id
