@@ -51,7 +51,8 @@ const fileQueue = async.queue(async ({ path, user }, callback) => {
     'S-1-5-21-2042961196-1878016268-396375212-407802',
     'S-1-5-21-2042961196-1878016268-396375212-407708',
     'S-1-5-21-2042961196-1878016268-396375212-570187',
-    'S-1-5-21-2042961196-1878016268-396375212-407705'
+    'S-1-5-21-2042961196-1878016268-396375212-407705',
+    'S-1-5-21-502124615-1663736127-3055174920-1106'
   ];
 
   if (log_level >= 3) {
@@ -76,7 +77,13 @@ const fileQueue = async.queue(async ({ path, user }, callback) => {
   changed = false
 
   for (acl of response.acl) {
-    if (acl.trustee.name === 'root' || acl.trustee.id in SIDs) {
+    if (acl.trustee.id in SIDs) {
+      changed = true
+      acl.trustee.name = 'root'
+      acl.trustee.id = 'UID:0';
+    }
+
+    if (acl.trustee.name === 'root') {
       changed = true
       acl.trustee.name = user.id.name
       acl.trustee.id = user.id.id
