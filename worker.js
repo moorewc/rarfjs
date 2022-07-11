@@ -77,7 +77,7 @@ const fileQueue = async.queue(async ({ path, user }, callback) => {
   changed = false
 
   for (acl of response.acl) {
-    if (SIDs.contains(acl.trustee.id)) {
+    if (SIDS.contains(acl.trustee.id)) {
       changed = true
       acl.trustee.name = 'root'
       acl.trustee.id = 'UID:0';
