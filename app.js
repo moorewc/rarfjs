@@ -207,8 +207,10 @@ function GetArguments() {
 
     console.log(`Adding FolderRedirects from ${file}`)
 
+
     for (line of data.toString().trim().split('\r\n')) {
       let username = user_lookup_table[line.toLowerCase()];
+
       if (username) {
         try {
           console.log(`+ ${path}/${username} [${line}]`);
@@ -217,9 +219,10 @@ function GetArguments() {
           throw error;
         }
       } else {
-        console.log(`- ${path}/${line} [Path Not Found]`)
+        console.log(`- ${path}/${line} -- [Path Not Found]`)
       }
     }
+
     return results;
   }
 
@@ -274,7 +277,6 @@ function GetArguments() {
       staged_users[payload.uname]--;
 
       if (staged_users[payload.uname] === 0) {
-
         workers[payload.id].postMessage({ cmd: 'repair_permissions', path: payload.folderRedirect, user: users[payload.uname], uname: payload.uname })
       }
     }
@@ -517,7 +519,7 @@ function GetArguments() {
   // }
 
   NormalizeUserList = async (path) => {
-    users = [];
+    let users = [];
 
     console.log(`Normalizing Usernames from ${path}, this may take some time...`);
     let folder = await isilon.namespace.get(path);
@@ -730,5 +732,4 @@ function GetArguments() {
     }
     workers[i].postMessage({ cmd: 'start_processing' });
   }
-
 })();

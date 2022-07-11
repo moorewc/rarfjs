@@ -255,7 +255,7 @@ parentPort.on('message', async ({ cmd, path, user, uname }) => {
         throw error
       }
     } else {
-      logger(chalk.yellow('SKIPPING') + ` ${path}/${uname} (USER NOT FOUND)`)
+      logger(chalk.yellow('SKIPPING') + ` ${path} (USER NOT FOUND)`)
     }
     completeJob({ shutdown: false });
   }
