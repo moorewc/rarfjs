@@ -81,12 +81,12 @@ async function getOpenSessions({ user }) {
     });
 }
 
-parentPort.on('message', async ({ cmd, path, user, uname, id }) => {
+parentPort.on('message', async ({ cmd, path, user, uname, id, folderRedirect }) => {
     if (cmd === 'close_open_files') {
         if (user) {
             UserQueue.push({ path, user, uname });
         }
-        parentPort.postMessage({ msg: 'repair_permissions', path, uname, id });
+        parentPort.postMessage({ msg: 'repair_permissions', path, uname, id, folderRedirect });
     }
 
     if (cmd === 'shutdown') {

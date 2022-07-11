@@ -274,7 +274,8 @@ function GetArguments() {
       staged_users[payload.uname]--;
 
       if (staged_users[payload.uname] === 0) {
-        workers[payload.id].postMessage({ cmd: 'repair_permissions', path: payload.path, user: users[payload.uname], uname: payload.uname })
+
+        workers[payload.id].postMessage({ cmd: 'repair_permissions', path: payload.folderRedirect, user: users[payload.uname], uname: payload.uname })
       }
     }
 
@@ -289,7 +290,7 @@ function GetArguments() {
         logger(`CLOSING OPEN FILES AND SESSIONS FOR ${uname}`);
         for (worker of workers2) {
           staged_users[uname]++;
-          worker.postMessage({ cmd: 'close_open_files', path: path, user: users[uname], uname: uname, id: payload.id })
+          worker.postMessage({ cmd: 'close_open_files', path: path, folderRedirect: nextPath, user: users[uname], uname: uname, id: payload.id })
         }
       } else {
         logger(`${payload.name} COMPLETE, SHUTTING DOWN.`)
